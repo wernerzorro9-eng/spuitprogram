@@ -2908,7 +2908,7 @@ async function pushMem(){if(CL.fb)return fbPushMem();await CL.col.doc('mem').set
 function setSync(v){S.cloud=v==='ok'?'sync':(v==='err'?'err':S.cloud);const e=document.getElementById('sync');if(e)e.outerHTML=syncChip()}
 function syncChip(){return `<span id="sync" class="sync ${S.cloud==='sync'?'ok':''}"${CL.fb?' data-a="fbout" title="Klik om uit te teken" style="cursor:pointer"':''}>${S.cloud==='sync'?(CL.fb?'☁ Gedeel · '+esc(FB.name):'☁ Gestoor in jou rekening'):(S.cloud==='err'?'⚠ Wolk-stoor het misluk – bly op hierdie toestel'+(SYNCERR?' ('+esc(SYNCERR)+')':''):'💾 Gestoor op hierdie toestel')}</span>`}
 function runSeeds(){const sb=seedBontera();const sh=seedHistory();const sd=seedDosis();const sk=seedSkei();const bl=seedBoerLeeg();const et=seedEtiket1117();const on=seedOnthouding();const tm=seedTrajekMaps();const lr=seedLambdaRissie();const o3=seedOnthouding3();const tp=seedTpl();const tof=seedTplOf();if(sk||bl||et||on||tm||lr||o3||tp||tof){save();render()}if(sd){save();render();toast('Dosisse per gewas by die Excel-tabel gevoeg')}if(sh||sb){S.programs.forEach(p=>{if(String(p.id).startsWith('h_'))pushLater('p_'+p.id,()=>pushProg(p))});save();render();toast(sb?'Bontera-pryslys en verpakkings bygewerk':'Nuwe programme bygevoeg onder Programme')}}
-const BUILD_ID='1795598054';
+const BUILD_ID='1795600177';
 function verBanner(){if(document.getElementById('verbn'))return;const b=document.createElement('div');b.id='verbn';b.className='verbn noprint';b.innerHTML='<span>Nuwe weergawe beskikbaar</span><button type="button" id="verbtn">Verfris</button><button type="button" id="verx" aria-label="Sluit">✕</button>';document.body.appendChild(b);document.getElementById('verbtn').onclick=()=>location.reload();document.getElementById('verx').onclick=()=>b.remove()}
 async function verCheck(){try{if(window.claude||!/^https?:/.test(location.protocol)||BUILD_ID.indexOf('BUILDID')>=0)return;const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(j&&j.v&&j.v!==BUILD_ID)verBanner()}catch(e){}}
 setTimeout(verCheck,4000);setInterval(verCheck,300000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)verCheck()});
@@ -2940,6 +2940,7 @@ async function fbBoot(){
  try{
   const ms=await FB.db.collection('shared').doc('mem').get();
   if(ms.exists)fbApplyMem(ms.data(),true);
+  CL.col=FBCOL;
   await new Promise((ok,no)=>{let first=true;FB.unsubs.push(FB.db.collection('programs').onSnapshot(snap=>{
    if(first){first=false;fbInitProgs(snap.docs);ok();return}
    let t=false;snap.docChanges().forEach(ch=>{if(ch.doc.metadata&&ch.doc.metadata.hasPendingWrites)return;if(ch.type==='removed'){if(fbRemoved(ch.doc.id))t=true}else if(fbIncoming(ch.doc.id,ch.doc.data()))t=true});if(t)fbRefresh()},e=>{if(first){first=false;no(e)}else fbErr(e)}))});
@@ -2948,7 +2949,7 @@ async function fbBoot(){
   FB.unsubs.push(FB.db.collection('presence').onSnapshot(s=>{FB.pres={};s.docs.forEach(d=>{FB.pres[d.id]=d.data()});fbBn();if(S.tab==='home')fbRefresh()},()=>{}));
   if(!ms.exists||(ms.data().updated||0)<S.memUpdated)pushLater('mem',pushMem);
   save();render();fbBn();fbPresSend(true);return true
- }catch(e){fbErr(e);return false}}
+ }catch(e){if(!CL.fb)CL.col=null;fbErr(e);return false}}
 function fbErr(e){const c=e&&e.code||'';SYNCERR=errTxt(e);try{console.error('FB',e)}catch(x){}if(/permission/.test(c)){toast('Jy het nie toegang tot die gedeelde data nie (kontroleer dat jou e-pos in die reëls is)')}else toast('Gedeelde databasis: '+SYNCERR);S.cloud='err';if(/permission/.test(c)){CL.col=null;CL.fb=false}const el=document.getElementById('sync');if(el)el.outerHTML=syncChip()}
 function fbRefresh(){const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;if(S.tab==='prog')return;render()}
 function fbOpenId(){if(S.tab!=='prog')return null;const id=(S.view&&S.view!=='cur')?S.view:S.curId;return S.programs.some(p=>p.id===id)?id:null}
