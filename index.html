@@ -2900,13 +2900,15 @@ let p=S.programs.find(x=>x.id===S.curId);const snap=JSON.parse(JSON.stringify({m
 function touchMem(){S.memUpdated=Date.now();pushLater('mem',pushMem)}
 function persist(){const p=upsertCurrent();save();if(p)pushLater('p_'+p.id,()=>pushProg(p))}
 /* ---------- wolk (db) ---------- */
-function pushLater(k,fn){if(!CL.col)return;clearTimeout(timers[k]);timers[k]=setTimeout(async()=>{try{await fn();setSync('ok')}catch(e){setSync('err')}},1500)}
+let SYNCERR='';const RETRY={};
+function errTxt(e){if(!e)return '';const c=e.code||e.name||'';const m=String(e.message||e).replace(/^Firebase: /,'').replace(/\s+/g,' ');return (c&&!m.includes(c)?c+': ':'')+m.slice(0,110)}
+function pushLater(k,fn){if(!CL.col)return;clearTimeout(timers[k]);timers[k]=setTimeout(async()=>{try{await fn();RETRY[k]=0;SYNCERR='';setSync('ok')}catch(e){SYNCERR=errTxt(e);try{console.error('Sync',k,e)}catch(x){}setSync('err');if(CL.fb&&(RETRY[k]=(RETRY[k]||0)+1)<=3)setTimeout(()=>pushLater(k,fn),20000)}},1500)}
 async function pushProg(p){if(CL.fb)return fbPushProg(p);await CL.col.doc('p_'+p.id).set({id:p.id,updated:p.updated,json:JSON.stringify(p)})}
 async function pushMem(){if(CL.fb)return fbPushMem();await CL.col.doc('mem').set({updated:S.memUpdated,json:JSON.stringify(memObj())})}
 function setSync(v){S.cloud=v==='ok'?'sync':(v==='err'?'err':S.cloud);const e=document.getElementById('sync');if(e)e.outerHTML=syncChip()}
-function syncChip(){return `<span id="sync" class="sync ${S.cloud==='sync'?'ok':''}"${CL.fb?' data-a="fbout" title="Klik om uit te teken" style="cursor:pointer"':''}>${S.cloud==='sync'?(CL.fb?'☁ Gedeel · '+esc(FB.name):'☁ Gestoor in jou rekening'):(S.cloud==='err'?'⚠ Wolk-stoor het misluk – bly op hierdie toestel':'💾 Gestoor op hierdie toestel')}</span>`}
+function syncChip(){return `<span id="sync" class="sync ${S.cloud==='sync'?'ok':''}"${CL.fb?' data-a="fbout" title="Klik om uit te teken" style="cursor:pointer"':''}>${S.cloud==='sync'?(CL.fb?'☁ Gedeel · '+esc(FB.name):'☁ Gestoor in jou rekening'):(S.cloud==='err'?'⚠ Wolk-stoor het misluk – bly op hierdie toestel'+(SYNCERR?' ('+esc(SYNCERR)+')':''):'💾 Gestoor op hierdie toestel')}</span>`}
 function runSeeds(){const sb=seedBontera();const sh=seedHistory();const sd=seedDosis();const sk=seedSkei();const bl=seedBoerLeeg();const et=seedEtiket1117();const on=seedOnthouding();const tm=seedTrajekMaps();const lr=seedLambdaRissie();const o3=seedOnthouding3();const tp=seedTpl();const tof=seedTplOf();if(sk||bl||et||on||tm||lr||o3||tp||tof){save();render()}if(sd){save();render();toast('Dosisse per gewas by die Excel-tabel gevoeg')}if(sh||sb){S.programs.forEach(p=>{if(String(p.id).startsWith('h_'))pushLater('p_'+p.id,()=>pushProg(p))});save();render();toast(sb?'Bontera-pryslys en verpakkings bygewerk':'Nuwe programme bygevoeg onder Programme')}}
-const BUILD_ID='1795587315';
+const BUILD_ID='1795598054';
 function verBanner(){if(document.getElementById('verbn'))return;const b=document.createElement('div');b.id='verbn';b.className='verbn noprint';b.innerHTML='<span>Nuwe weergawe beskikbaar</span><button type="button" id="verbtn">Verfris</button><button type="button" id="verx" aria-label="Sluit">✕</button>';document.body.appendChild(b);document.getElementById('verbtn').onclick=()=>location.reload();document.getElementById('verx').onclick=()=>b.remove()}
 async function verCheck(){try{if(window.claude||!/^https?:/.test(location.protocol)||BUILD_ID.indexOf('BUILDID')>=0)return;const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(j&&j.v&&j.v!==BUILD_ID)verBanner()}catch(e){}}
 setTimeout(verCheck,4000);setInterval(verCheck,300000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)verCheck()});
@@ -2947,7 +2949,7 @@ async function fbBoot(){
   if(!ms.exists||(ms.data().updated||0)<S.memUpdated)pushLater('mem',pushMem);
   save();render();fbBn();fbPresSend(true);return true
  }catch(e){fbErr(e);return false}}
-function fbErr(e){const c=e&&e.code||'';if(/permission/.test(c)){toast('Jy het nie toegang tot die gedeelde data nie');try{FB.auth.signOut()}catch(x){}}else toast('Gedeelde databasis: '+(c||(e&&e.message)||'fout'));S.cloud='err';CL.col=null;CL.fb=false;const el=document.getElementById('sync');if(el)el.outerHTML=syncChip()}
+function fbErr(e){const c=e&&e.code||'';SYNCERR=errTxt(e);try{console.error('FB',e)}catch(x){}if(/permission/.test(c)){toast('Jy het nie toegang tot die gedeelde data nie (kontroleer dat jou e-pos in die reëls is)')}else toast('Gedeelde databasis: '+SYNCERR);S.cloud='err';if(/permission/.test(c)){CL.col=null;CL.fb=false}const el=document.getElementById('sync');if(el)el.outerHTML=syncChip()}
 function fbRefresh(){const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;if(S.tab==='prog')return;render()}
 function fbOpenId(){if(S.tab!=='prog')return null;const id=(S.view&&S.view!=='cur')?S.view:S.curId;return S.programs.some(p=>p.id===id)?id:null}
 function fbApplyMem(m,init){if(!m||!m.json)return false;let o;try{o=JSON.parse(m.json)}catch(e){return false}
